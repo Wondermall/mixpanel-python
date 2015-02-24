@@ -15,7 +15,7 @@ The Consumer and BufferedConsumer classes allow callers to
 customize the IO characteristics of their tracking.
 """
 
-VERSION = '3.2.0'
+VERSION = '4.0.1'
 
 
 class Mixpanel(object):
@@ -71,7 +71,7 @@ class Mixpanel(object):
             'properties': all_properties,
         }
         event.update(meta)
-        self._consumer.send('events', json.dumps(event))
+        self._consumer.send('events', json.dumps(event, separators=(',', ':')))
 
     def import_data(self, api_key, distinct_id, event_name, timestamp, properties={}, meta={}):
         """
@@ -111,7 +111,7 @@ class Mixpanel(object):
             'properties': all_properties,
         }
         event.update(meta)
-        self._consumer.send('imports', json.dumps(event), api_key)
+        self._consumer.send('imports', json.dumps(event, separators=(',', ':')), api_key)
 
     def alias(self, alias_id, original, meta={}):
         """
@@ -138,7 +138,7 @@ class Mixpanel(object):
             },
         }
         event.update(meta)
-        sync_consumer.send('events', json.dumps(event))
+        sync_consumer.send('events', json.dumps(event, separators=(',', ':')))
 
     def people_set(self, distinct_id, properties, meta={}):
         """
@@ -290,7 +290,7 @@ class Mixpanel(object):
         }
         record.update(message)
         record.update(meta)
-        self._consumer.send('people', json.dumps(record))
+        self._consumer.send('people', json.dumps(record, separators=(',', ':')))
 
 
 class MixpanelException(Exception):
@@ -384,7 +384,7 @@ class BufferedConsumer(object):
         self._buffers = {
             'events': [],
             'people': [],
-            'imports': [],
+            'imports': {},
         }
         self._max_size = min(50, max_size)
 
@@ -407,12 +407,20 @@ class BufferedConsumer(object):
         if endpoint not in self._buffers:
             raise MixpanelException('No such endpoint "{0}". Valid endpoints are one of {1}'.format(self._buffers.keys()))
 
-        buf = self._buffers[endpoint]
+        if endpoint != 'imports':
+            buf = self._buffers[endpoint]
+        else:
+            if not api_key:
+                raise MixpanelException('An api_key must be provided with events to be imported')
+            else:
+                if api_key not in self._buffers[endpoint]:
+                    self._buffers[endpoint][api_key] = []
+                buf = self._buffers[endpoint][api_key]
         buf.append(json_message)
         if len(buf) >= self._max_size:
-            self._flush_endpoint(endpoint, api_key)
+            self._flush(endpoint, buf, api_key)
 
-    def flush(self, api_key=None):
+    def flush(self):
         """
         Send all remaining messages to Mixpanel.
 
@@ -429,17 +437,23 @@ class BufferedConsumer(object):
         :raises: MixpanelException
         """
         for endpoint in self._buffers.keys():
-            self._flush_endpoint(endpoint, api_key)
+            if endpoint == 'imports':
+                for api_key in self._buffers['imports'].keys():
+                    self._flush(endpoint, self._buffers['imports'][api_key], api_key)
+            else:
+                self._flush(endpoint, self._buffers[endpoint])
 
-    def _flush_endpoint(self, endpoint, api_key):
-        buf = self._buffers[endpoint]
+    def _flush(self, endpoint, buf, api_key=None):
         while buf:
             batch = buf[:self._max_size]
             batch_json = '[{0}]'.format(','.join(batch))
             try:
-                self._consumer.send(endpoint, batch_json, api_key=api_key)
+                self._consumer.send(endpoint, batch_json, api_key)
             except MixpanelException as e:
                 e.message = 'batch_json'
                 e.endpoint = endpoint
             buf = buf[self._max_size:]
-        self._buffers[endpoint] = buf
+        if not api_key:
+            self._buffers[endpoint] = buf
+        else:
+            self._buffers[endpoint][api_key] = buf
