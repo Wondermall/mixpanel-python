@@ -71,7 +71,7 @@ class Mixpanel(object):
             'properties': all_properties,
         }
         event.update(meta)
-        self._consumer.send('events', json.dumps(event, separators=(',', ':')))
+        self._consumer.send('events', json.dumps(event))
 
     def import_data(self, api_key, distinct_id, event_name, timestamp, properties={}, meta={}):
         """
@@ -111,7 +111,7 @@ class Mixpanel(object):
             'properties': all_properties,
         }
         event.update(meta)
-        self._consumer.send('imports', json.dumps(event, separators=(',', ':')), api_key)
+        self._consumer.send('imports', json.dumps(event), api_key)
 
     def alias(self, alias_id, original, meta={}):
         """
@@ -138,7 +138,7 @@ class Mixpanel(object):
             },
         }
         event.update(meta)
-        sync_consumer.send('events', json.dumps(event, separators=(',', ':')))
+        sync_consumer.send('events', json.dumps(event))
 
     def people_set(self, distinct_id, properties, meta={}):
         """
@@ -290,7 +290,7 @@ class Mixpanel(object):
         }
         record.update(message)
         record.update(meta)
-        self._consumer.send('people', json.dumps(record, separators=(',', ':')))
+        self._consumer.send('people', json.dumps(record))
 
 
 class MixpanelException(Exception):
