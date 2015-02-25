@@ -339,7 +339,7 @@ class Consumer(object):
 
     def _write_request(self, request_url, json_message, api_key=None):
         data = {
-            'data': base64.b64encode(json_message),
+            'data': base64.b64encode(json_message).replace('==', ''),
             'verbose': 1,
             'ip': 0,
         }
